@@ -1,0 +1,35 @@
+* try / catch does not really help you with async.
+* What happens when:
+** http server without try / catch, sync response
+
+** http server with try / catch, sync response
+
+** http server without try / catch, async respons
+
+** http server with try / catch, sync response
+
+** express server without try / catch, sync response
+
+Express uses default Connect errorHandler.
+
+Connect has default errorHandler middleware that will print stack trace (unless
+env is "test") 
+
+** express server with try / catch, async response
+
+** express server without try / catch, sync response
+
+** express server with try / catch, async response
+
+
+
+* TODO list of test cases
+  - unhandled error (sync throw)
+  - uncaught exception (async throw)
+  - request that causes uncaught exception and is resent (GET to endpoint that
+    async throws from a client that resends unfulfilled requests)
+  - service reload / SIGHUP
+  - try when no keep-alive connections exist
+  - try when some keep-alive connections exist
+  - check whether keep-alive clients wind down connections
+  - 

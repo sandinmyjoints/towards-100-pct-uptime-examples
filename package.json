@@ -1,0 +1,14 @@
+{
+  "name": "muchtolearn",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index-1.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "William John Bert",
+  "license": "MIT",
+  "dependencies": {
+    "express": "~3.4.0"
+  }
+}
