@@ -1,27 +1,106 @@
+* Zero downtime means working with unstable and experimental parts of Node!
 * try / catch does not really help you with async.
+* "express handlers errors" -- sort of, a bit
 * What happens when:
-** http server without try / catch, sync response
+** http, sync, without try / catch (app-http-sync)
 
-** http server with try / catch, sync response
+   - client: no response
+   - server: writes error to sderr, throws uncaught, and process exits
 
-** http server without try / catch, async respons
+** http, sync, with try / catch (app-http-sync-trycatch)
 
-** http server with try / catch, sync response
+   - client: gets 500
+   - server: handles with catch
 
-** express server without try / catch, sync response
+** http, async, without try / catch (app-http-async)
+
+   - client: no response
+   - server: writes error to sderr, throws uncaught, and process exits
+
+** http, async, with try / catch (app-http-async-trycatch)
+
+   - client: no response
+   - server: writes error to sderr, throws uncaught, and process exits
+
+** express server without try / catch, sync response (app-express-sync)
+
+   - client: gets 500
+   - server: writes error, stack trace to stderr (connect errorHandler)
 
 Express uses default Connect errorHandler.
 
 Connect has default errorHandler middleware that will print stack trace (unless
-env is "test") 
+env is "test")
 
-** express server with try / catch, async response
+** express server with try / catch, sync response (app-express-sync-trycatch)
 
-** express server without try / catch, sync response
+   - client: gets 500
+   - server: handles with catch
 
-** express server with try / catch, async response
+** express server without try / catch, async response (app-express-async)
 
+   - client: no response
+   - server: writes error to sderr, throws uncaught, and process exits
 
+** express server with try / catch, async response (app-express-async-trycatch)
+
+   - client: no response
+   - server: writes error to sderr, throws uncaught, and process exits
+
+* an error event that is emitted when no one is listening for it behaves similarly; ultimately it's going to throw, async:
+  #+BEGIN_SRC
+  events.js:72
+          throw er; // Unhandled 'error' event
+  #+END_SRC
+
+* Client no response is a big problem: seems to hang, and some clients will
+resend the request multiple times, possibly triggering some error on more
+workers if you are using workers.
+
+* async is trouble: no response whenever it was async. Express default error handling will not help you here, either.
+
+* this is where domains come in. wrap async operations in a domain, and the domain will handle whatever happens.
+
+* With domains, can we *always* return a response?
+
+* So, do I have to create a new domain everytime I do an async operation??
+
+* That would work. Or you can create one and pass it around. In express, maybe using res.locals.
+
+  Question: is it possible to wrap all of Express in a domain?
+
+* Still a lot of extra work to domain.bind or domain.intercept or domain.run every async operation.
+
+* Afaik, this is an unsolved problem and an area of research. Domains in v0.10 are 2 - Unstable.
+
+* So that's how to handle the inner layers of the onion: the individual node http server, ie, your app.
+
+* Can you achieve zero-downtime with one instance of your app running? Use domains, return a 500 on every exception?
+
+* Node docs say not to keep running on uncaught exceptions:
+
+  - http://nodejs.org/api/process.html#process_event_uncaughtexception:
+
+    Do not use it as the node.js equivalent of On Error Resume Next. An
+    unhandled exception means your application - and by extension node.js
+    itself - is in an undefined state. Blindly resuming means anything could
+    happen.
+
+    Think of resuming as pulling the power cord when you are upgrading your
+    system. Nine out of ten times nothing happens - but the 10th time, your
+    system is bust.
+
+    You have been warned.
+
+  - These are not errors that you have anticipated, so you don't have a
+    response to them. If you keep going, maybe things will be fine, maybe not
+    -- impossible to predict?
+
+  - Do you feel lucky?
+
+* So what are you supposed to do? You are supposed to kill this instance! = > zero downtime
+
+* Solution: next layer of onion: multiple workers. One per each CPU. One worker dies, but others are still alive.
 
 * TODO list of test cases
   - unhandled error (sync throw)
@@ -32,4 +111,74 @@ env is "test")
   - try when no keep-alive connections exist
   - try when some keep-alive connections exist
   - check whether keep-alive clients wind down connections
-  - 
+  -
+
+* TODO stuff to demonstrate
+
+  - client that resends bad HTTP requests when worker gives no response,
+    therefore takes down multiple workers
+
+* Our ideal server:
+** on provision / boot
+   - upstart starts node-app service, which brings up cluster master, which forks new
+     workers, which each create instances of node-app, which each accept
+     connections, which transmit requests that receive responses.
+** on exception caught by express, or process uncaught exception:
+   - Returns 500 if error was triggered by request
+   - Must *avoid not sending any response* because 1) user agent appears to hang
+     and 2) it will probably resend the bad request once the connection closes,
+     thus triggering another exception!
+   - stops accepting new TCP connections (either by disconnecting from
+     master/worker IPC channel, or calling server.close)
+   - worker enters graceful_shutdown state: closes existing keep-alive
+     long-running TCP connections (sets timeout to 1 whenever there is activity
+     on them so they close right away)
+   - worker process exits when all connections are closed (graceful), or after
+     a reasonable timeout period (hard exit)
+   - cluster master forks a replacement worker either once old worker dies
+     (easy) or once it stops accepting new TCP connections (how to know? either
+     disconnects, or maybe just server closes, in which case it needs to tell
+     cluster master). In that case, can have > n workers, where n is number of
+     CPUs -- not ideal, but probably not a problem unless a bad worker is
+     maxing out resources.
+** on deploy new version / SIGHUP:
+
+   - upstart sends SIGHUP to cluster master process.
+   - cluster master process tells existing workers to disconnect from IPC channel.
+   - existing workers disconnect from IPC channel.
+   - existing workers enter graceful_shutdown state: closes existing keep-alive
+     long-running TPC connections.
+   - cluster master forks new workers from new version of code.
+   - existing workers exists when all connections are closed, or after a
+     reasonable timeout period.
+** on SIGKILL
+
+** on SIGUSR1 / debugger / repl
+
+
+Will cluster master buffer/retain connections that are attempted to be made
+when now workers are accepting connections?
+
+** What does naught do?
+
+   - Does it play well with upstart?
+   - runs it own daemon
+
+** What does forever do?
+
+   - Does it play well with upstart?
+
+
+** Why zero-downtime?
+
+   - screenshot of nginx 503 gateway unreachable
+   - screenshot of Chrome (pending) request
+   - if nginx can't talk to the app, can return 503, users might see it, or
+     their browser might hang.
+   - if errors aren't handled correctly, user agents may resend bad requests
+     and cause even more trouble.
+   - if you know that deploying code can cause a bad experience for users who
+     are online, or cause system errors or corrupted data, you won't deploy as
+     much.
+
+** start on the inside and work our way out.
