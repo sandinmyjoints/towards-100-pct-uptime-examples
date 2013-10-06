@@ -3,6 +3,8 @@ var path = require('path'),
 
 var app = express();
 
+var PORT = process.env.PORT || 1025;
+
 app.get('*', function(req, res){
     try {
         var f = function() {
@@ -14,11 +16,11 @@ app.get('*', function(req, res){
         };
         setTimeout(f, 1000);
     } catch (ex) {
-        body = path.basename(__filename) + ': Error: ' + ex.message;
+        body = path.basename(__filename) + ': Error (caught): ' + ex.message;
         res.setHeader('Content-Length', body.length);
-        res.setHeader('Status', 500);
-        res.end(body);        
+        res.status(500);
+        res.end(body);
     }
-}).listen(1025);
+}).listen(PORT);
 
-console.log('Server running at http://127.0.0.1:1025/');
+console.log('Server running at http://127.0.0.1:' + PORT + '/');

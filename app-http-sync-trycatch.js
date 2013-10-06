@@ -1,6 +1,8 @@
 var http = require('http'),
     path = require('path');
 
+var PORT = process.env.PORT || 1025;
+
 http.createServer(function (request, response) {
     try {
         throw new Error("uh-oh");
@@ -8,8 +10,8 @@ http.createServer(function (request, response) {
         response.end(path.basename(__filename) + ': Hello World\n');
     } catch (ex) {
         response.writeHead(500, {'Content-Type': 'text/plain'});
-        response.end(path.basename(__filename) + ': Error: ' + ex.message + '\n');
+        response.end(path.basename(__filename) + ': Error (caught): ' + ex.message + '\n');
     }
-}).listen(1025);
+}).listen(PORT);
 
-console.log('Server running at http://127.0.0.1:1025/');
+console.log('Server running at http://127.0.0.1:' + PORT + '/');

@@ -3,6 +3,8 @@ var path = require('path'),
 
 var app = express();
 
+var PORT = process.env.PORT || 1025;
+
 app.get('*', function(req, res){
     var f = function() {
         throw new Error("uh-oh");
@@ -12,6 +14,6 @@ app.get('*', function(req, res){
         res.end(body);
     };
     setTimeout(f, 1000);
-}).listen(1025);
+}).listen(PORT);
 
-console.log('Server running at http://127.0.0.1:1025/');
+console.log('Server running at http://127.0.0.1:' + PORT + '/');
