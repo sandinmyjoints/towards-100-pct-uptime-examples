@@ -63,7 +63,7 @@ workers if you are using workers.
 
 * With domains, can we *always* return a response?
 
-* So, do I have to create a new domain everytime I do an async operation??
+* So, do I have to create a new domain everytime I do an async operation?? Everytime I handle a req/res?
 
 * That would work. Or you can create one and pass it around. In express, maybe using res.locals.
 
@@ -117,6 +117,8 @@ workers if you are using workers.
 
   - client that resends bad HTTP requests when worker gives no response,
     therefore takes down multiple workers
+
+* This may all be changing in the future. Node 0.11 has round robin, add/remove worker.
 
 * Our ideal server:
 ** on provision / boot
