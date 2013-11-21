@@ -1,3 +1,17 @@
+* Who knows what happens
+
+  - if a client makes a request and the underlying tcp connection is closed
+    without a response?
+  - it will open a new connection and retry
+  - this is in the HTTP spec
+  - now, who knows what node says to do on an uncaught exception?
+  - kill the process
+  - so what happens when I POST a charge to /api/billing and the server throws?
+  - if no other workers, maybe nothing happens -- maybe error while waiting for
+    a new worker to come up
+  - if cluster, then
+  - another POST! maybe repeating a charge, if that part went through? who knows!
+  - TODO create a minimum test case that demonstrates this
 * Zero downtime means working with unstable and experimental parts of Node!
 * try / catch does not really help you with async.
 * "express handlers errors" -- sort of, a bit
@@ -184,3 +198,5 @@ when now workers are accepting connections?
      much.
 
 ** start on the inside and work our way out.
+
+* TODO learn more about the communication pipe and shared socket. Are they related?
