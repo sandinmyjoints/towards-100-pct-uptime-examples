@@ -1,7 +1,15 @@
 {
   "name": "muchtolearn",
-  "version": "0.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "main": "index",
+  "engines": {
+    "node": "=0.10.20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sandinmyjoints/muchtolearn.git"
+  },
+  "description": "Example code for Much to Learn: Towards Zero-downtime with Node.js.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -9,7 +17,8 @@
   "author": "William John Bert",
   "license": "MIT",
   "dependencies": {
-    "express": "~3.4.0",
+    "recluster": "=0.3.4",
+    "express": "=3.4.0",
     "glob": "~3.2.6"
   }
 }
