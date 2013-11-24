@@ -75,6 +75,7 @@ workers if you are using workers.
 
 * this is where domains come in. wrap async operations in a domain, and the domain will handle whatever happens.
 
+* http://blog.izs.me/post/65712662830/restart-node-js-servers-on-domain-errors-sensible-fud
 * With domains, can we *always* return a response?
 
 * So, do I have to create a new domain everytime I do an async operation?? Everytime I handle a req/res?
@@ -133,7 +134,22 @@ workers if you are using workers.
     therefore takes down multiple workers
 
 * This may all be changing in the future. Node 0.11 has round robin, add/remove worker.
+  - http://strongloop.com/strongblog/whats-new-in-node-js-v0-12-cluster-round-robin-load-balancing/?utm_source=javascriptweekly&utm_medium=email
+* Choices
+** Forever
 
+   - Been around...forever
+   - Lots of issues
+   - No clustering
+** Naught
+
+   - Newer
+   - Logging
+** Recluster
+   - simple
+   - clustering
+   - log agnostic
+   - relatively easy to reason about
 * Our ideal server:
 ** on provision / boot
    - upstart starts node-app service, which brings up cluster master, which forks new
