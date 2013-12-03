@@ -1,96 +1,116 @@
-### (I have much to learn about)
+## Towards
 
-# zero downtime
+# 100% Uptime
 
 ## with node.js ##
 
 
 
-# I hate downtime.
+# SpanishDict
+
+9M uniques / month
+<br>
+<br>
+# Fluencia
+
+60K+ users, some are paid subscribers
+
+Note: I'm a Software Engineer, one of three, at Curiosity Media. We have two
+main properties: SpanishDict and Fluencia.
 
 
-# Users hate downtime.
 
-** Why zero-downtime?
+## (We|you|users) hate downtime.
+
+
+TODO Why zero-downtime?
 
    - screenshot of nginx 503 gateway unreachable
    - screenshot of Chrome (pending) request
-   - if nginx can't talk to the app, can return 503, users might see it, or
-     their browser might hang.
-   - if errors aren't handled correctly, user agents may resend bad requests
-     and cause even more trouble.
-   - if you know that deploying code can cause a bad experience for users who
-     are online, or cause system errors or corrupted data, you won't deploy as
-     much.
+
+Note:
+- If nginx can't talk to the app, can return 503, users might see it, or
+  their browser might hang.
+- If you know that deploying code can cause a bad experience for users who
+  are online, or cause system errors or corrupted data, you won't deploy as
+  much.
 
 
 
-# No reason for it
+Need a more concrete reason?
+## Pop quiz
+### What happens when a client makes a request and the underlying tcp connection is closed without a response?
+
+Note:
+- If errors aren't handled correctly, user agents may resend bad requests
+  and cause even more trouble.
 
 
-* Who knows what happens:
-  - If a client makes a request and the underlying tcp connection is closed
-    without a response?
-  - It will open a new connection and retry
-  - This is in the HTTP spec.
-  - Now, who knows what node says to do on an uncaught exception?
-  - Kill the process.
-  - So what happens when I POST a charge to /api/billing and something goes
-    wrong and the server throws?
-  - If no other workers, maybe nothing happens -- maybe error while waiting for
-    a new worker to come up.
-  - If cluster, then
+
+The client will open a new connection and retry.
+
+This is in the HTTP spec.
+
+
+### Question 2
+## What do the Node docs say to do on an uncaught exception?
+
+
+Kill the process.
+
+
+So what happens when I POST a charge to /api/billing and something goes
+wrong and the server throws?
+
+
+If no other workers, maybe nothing happens -- maybe error while waiting for
+a new worker to come up.
+
+
+If using cluster, then
   - another POST! maybe repeating a charge, if that part went through? who knows!
-  - TODO create a minimum test case that demonstrates this
-* No response is a big problem for clients, and for us
+
+TODO: demo this
+
+
+No response is a big problem for clients, and for us
   - seems to hang, and some clients will resend the request multiple times,
     possibly triggering some error on more workers if you are using workers.
 
 
 
+# Sensible error handling
+## is key to 100% uptime
 
-# Error handling
 
-Things that throw errors:
+### Things that throw errors:
 - an error event that is emitted when no one is listening for it
 - async io
 
+
+It's right in the source.
+
 ```js
 EventEmitter.prototype.emit = function(type) {
-  var er, handler, len, args, i, listeners;
-
-  if (!this._events)
-    this._events = {};
-
   // If there is no 'error' event listener then throw.
   if (type === 'error') {
-    if (!this._events.error ||
-        (typeof this._events.error === 'object' &&
-         !this._events.error.length)) {
-      er = arguments[1];
       if (this.domain) {
-        if (!er) er = new TypeError('Uncaught, unspecified "error" event.');
-        er.domainEmitter = this;
-        er.domain = this.domain;
-        er.domainThrown = false;
-        this.domain.emit('error', er);
+      ...
       } else if (er instanceof Error) {
         throw er; // Unhandled 'error' event
       } else {
         throw TypeError('Uncaught, unspecified "error" event.');
       }
-      return false;
-    }
-  }
 ```
 
-# `try` / `catch` won't help you
 
-# Goal: zero downtime
+### async io:
+##`try` / `catch` won't help you
 
 
-## Subgoal: always return a response, even when error
-## Subgoal: no downtime on deployment
+
+## Always return a response, even on error
+
 
 
 # Handling exceptions
@@ -100,7 +120,11 @@ Notice that try / catch didn't really help.
 ** does not really help you with async.
 ** async is trouble: no response whenever it was async. Express default error handling will not help you here, either.
 
-* this is where domains come in. wrap async operations in a domain, and the domain will handle whatever happens.
+
+# Domains
+
+This is where domains come in. Wrap async operations in a domain, and the domain
+will handle whatever happens.
 
 * With domains, can we *always* return a response?
 
@@ -146,27 +170,15 @@ TODO Question: is it possible to wrap all of Express in a domain?
 ** start on the inside and work our way out.
 
 
-
-
-
-# Deployment / upgrades
-
-We'll come back to this. Robust error handling will get us most of the way there.
-
-
+### Tip:
+## Be able to produce an error on demand on your dev and staging servers.
+(Disable it in production.)
 
 
 
 # Our ideal server
 
 TODO picture of unicorn or something
-
-
-## on provision / boot
-   - OS process manager (e.g., Upstart) starts node-app service, which brings up
-     cluster master, which forks new workers, which each create instances of
-     node-app, which each accept connections, which transmit requests that
-     receive responses.
 
 
 ## on exception caught by express, or process uncaught exception:
@@ -187,6 +199,28 @@ TODO picture of unicorn or something
      cluster master). In that case, can have > n workers, where n is number of
      CPUs -- not ideal, but probably not a problem unless a bad worker is
      maxing out resources.
+
+
+## No downtime on deployment
+
+TODO how to introduce this
+
+
+# Deployment / upgrades
+
+Note: Robust error handling got us pretty far.
+
+
+## Our ideal server
+
+
+## on provision / boot
+   - OS process manager (e.g., Upstart) starts node-app service, which brings up
+     cluster master, which forks new workers, which each create instances of
+     node-app, which each accept connections, which transmit requests that
+     receive responses.
+
+
 ## on deploy new version / SIGHUP:
 
    - upstart sends SIGHUP to cluster master process.
@@ -226,33 +260,63 @@ TODO picture of unicorn or something
 
 
 ## Recluster
-    - Newer
-    - Cluster
-    - Simple
-    - Log agnostic
-    - Relatively easy to reason about
+   - Newer
+   - Cluster
+   - Simple
+   - Log agnostic
+   - Relatively easy to reason about
 
+
+
+# Limitations
+
+Need to bump cluster master when:
+
+* Upgrade Node version
+* Cluster master code changes
+* Upstart / init.d script changes
+
+TODO: Do other solutions handle these cases? What would it take to fix this?
 
 
 # Future
 
 I've been talking about:
-* node 0.10.20
-* express 3.4.0
-* connect 2.9.0
-* recluster 0.3.4
+
+```json
+{
+  "node": "=0.10.20",
+  "express": "=3.4.0",
+  "connect": "=2.9.0",
+  "recluster": "=0.3.4"
+}
+```
 
 
 # Things change
 
-# Node 0.11 / 0.12
-* This may all be changing in the future. Node 0.11 has round robin, add/remove worker.
-  - http://strongloop.com/strongblog/whats-new-in-node-js-v0-12-cluster-round-robin-load-balancing/?utm_source=javascriptweekly&utm_medium=email
 
-# cluster is marked as experimental
-* Zero downtime means working with unstable and experimental parts of Node!
+## Node 0.11 / 0.12
+This may all be changing in the future. Node 0.11 has round robin, add/remove worker.
 
 
-* links
+## cluster is marked as experimental
+Zero downtime means working with unstable and experimental parts of Node!
 
-** https://github.com/mathrawka/express-graceful-exit
+
+
+# Good reading
+
+* https://github.com/mathrawka/express-graceful-exit
+* http://strongloop.com/strongblog/whats-new-in-node-js-v0-12-cluster-round-robin-load-balancing/?utm_source=javascriptweekly&utm_medium=email
+
+
+
+Want to get even closer to 100% uptime?
+
+# We're hiring.
+
+Come talk to me.
+
+* @williamjohnbert
+* github.com/sandinmyjoints
