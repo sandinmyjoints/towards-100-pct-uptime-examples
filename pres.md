@@ -16,16 +16,18 @@
 60K+ users, some are paid subscribers
 
 Note: I'm a Software Engineer, one of three, at Curiosity Media. We have two
-main properties: SpanishDict and Fluencia.
+main properties: SpanishDict and Fluencia. Both run Node.js on the backend.
+SpanishDict is a traditional web site, with page reloads. Fluencia is a single
+page web app with AJAX calls to a REST API.
 
 
 
-## (We|you|users) hate downtime.
+## ( We | you | users ) <br>hate downtime.
 
 
 TODO Why zero-downtime?
 
-   - screenshot of nginx 503 gateway unreachable
+   - screenshot of nginx 503 or 502 gateway unreachable
    - screenshot of Chrome (pending) request
 
 Note:
@@ -104,21 +106,23 @@ EventEmitter.prototype.emit = function(type) {
 ```
 
 
-### async io:
-##`try` / `catch` won't help you
-
-
 
 ## Always return a response, even on error
+
+Don't keep clients hanging. They can come back to bite you.
 
 
 
 # Handling exceptions
 
-* try / catch won't help you now
-Notice that try / catch didn't really help.
-** does not really help you with async.
-** async is trouble: no response whenever it was async. Express default error handling will not help you here, either.
+
+
+# Handling async errors
+
+`try / catch` won't help you now!
+
+async can be trouble: no response whenever it was async. Express default error
+handling will not help you here, either.
 
 
 # Domains
@@ -128,19 +132,68 @@ will handle whatever happens.
 
 * With domains, can we *always* return a response?
 
-* So, do I have to create a new domain everytime I do an async operation?? Everytime I handle a req/res?
+* So, do I have to create a new domain everytime I do an async operation??
+  Everytime I handle a req/res?
 
-* That would work. Or you can create one and pass it around. In express, maybe using res.locals.
+* That would work. Or you can create one and pass it around. In express, maybe
+  using res.locals.
+
+* Use middleware.
+
+* https://github.com/brianc/node-domain-middleware.
+* https://github.com/mathrawka/express-domain-errors
+
+```coffee
+  domainWrapper: (before, after) ->
+    (req, res, next) ->
+      reqDomain           = domain.create()
+
+      res.locals._domain  = reqDomain
+
+      reqDomain.add req
+      reqDomain.add res
+
+      reqDomain.run next
+
+      reqDomain.once 'error', (err) ->
+        before err if before?
+        next err
+        after err if after?
+```
+
+
+Of course, if the domain is disposed and an error occurs, then it will be
+uncaught. TODO confirm this -- see example-domain.js
 
 TODO Question: is it possible to wrap all of Express in a domain?
 
-* Still a lot of extra work to domain.bind or domain.intercept or domain.run every async operation.
 
-* Afaik, this is an unsolved problem and an area of research. Domains in v0.10 are 2 - Unstable.
+## domain methods
+  - `enter`
+  - `bind`
+  - `run`
+  - `intercept`
 
-* So that's how to handle the inner layers of the onion: the individual node http server, ie, your app.
 
-* Can you achieve zero-downtime with one instance of your app running? Use domains, return a 500 on every exception?
+
+# domains
+## are great
+## until they're not
+
+* Still a lot of extra work to domain.bind or domain.intercept or domain.run
+  every async operations that might be unsafe. How to know?.
+
+* Afaik, this is an unsolved problem and an area of research. Domains in v0.10
+  are 2 - Unstable.
+
+* So that's how to handle the inner layers of the onion: the individual node
+  http server, ie, your app.
+
+* Can you achieve zero-downtime with one instance of your app running? Use
+  domains, return a 500 on every exception?
+
+
+# uncaught exceptions
 
 ** Node docs say not to keep running on uncaught exceptions:
 
@@ -173,6 +226,9 @@ TODO Question: is it possible to wrap all of Express in a domain?
 ### Tip:
 ## Be able to produce an error on demand on your dev and staging servers.
 (Disable it in production.)
+
+Note: This is really helpful for debugging and testing. Make sure to both a sync
+and an async version.
 
 
 
@@ -214,29 +270,32 @@ Note: Robust error handling got us pretty far.
 ## Our ideal server
 
 
-## on provision / boot
-   - OS process manager (e.g., Upstart) starts node-app service, which brings up
-     cluster master, which forks new workers, which each create instances of
-     node-app, which each accept connections, which transmit requests that
-     receive responses.
+## On provision / boot
+
+   - OS process manager (e.g., Upstart) starts node-app service.
+   - node-app brings up cluster master.
+   - Cluster master forks new workers.
+   - Each worker creates an instance of node-app.
+   - Each instance accepts connections.
 
 
-## on deploy new version / SIGHUP:
+## On deploy new version / SIGHUP:
 
-   - upstart sends SIGHUP to cluster master process.
-   - cluster master process tells existing workers to disconnect from IPC channel.
-   - existing workers disconnect from IPC channel.
-   - existing workers enter graceful_shutdown state: closes existing keep-alive
-     long-running TPC connections.
-   - cluster master forks new workers from new version of code.
-   - existing workers exists when all connections are closed, or after a
-     reasonable timeout period.
+   - Upstart sends `SIGHUP` to cluster master.
+   - Cluster master tells workers to disconnect from IPC channel.
+   - Workers disconnect from IPC channel.
+   - Workers enter graceful_shutdown state: close out TCP connections.
+   - Cluster master forks new workers from new version of code.
+   - Existing workers exit when all connections are closed, or after a
+     timeout.
 
-## on SIGTERM
 
-## on SIGKILL
+## Lots of signals
 
-## on SIGUSR1 / debugger / repl
+   - `SIGTERM`: shut down gracefully
+   - `SIGKILL`: shut down **now**
+   - `SIGUSR1`: start debugger / repl
+   - `SIGUSR2`: some people like this for reload / new version
 
 
 
@@ -267,16 +326,21 @@ Note: Robust error handling got us pretty far.
    - Relatively easy to reason about
 
 
+## Went with recluster.
+### Happy so far.
+
+
 
 # Limitations
 
-Need to bump cluster master when:
+Must bump cluster master when:
 
-* Upgrade Node version
+* Upgrade Node
 * Cluster master code changes
-* Upstart / init.d script changes
+* Upstart script changes
 
 TODO: Do other solutions handle these cases? What would it take to fix this?
+
 
 
 # Future
@@ -285,10 +349,11 @@ I've been talking about:
 
 ```json
 {
-  "node": "=0.10.20",
-  "express": "=3.4.0",
-  "connect": "=2.9.0",
-  "recluster": "=0.3.4"
+  "node": "~0.10.20",
+  "express": "~3.4.0",
+  "connect": "~2.9.0",
+  "recluster": "=0.3.4",
+  "mongoose":
 }
 ```
 
@@ -298,9 +363,10 @@ I've been talking about:
 
 ## Node 0.11 / 0.12
 This may all be changing in the future. Node 0.11 has round robin, add/remove worker.
+TODO: Node 0.11 domains
 
 
-## cluster is marked as experimental
+## cluster is "experimental"
 Zero downtime means working with unstable and experimental parts of Node!
 
 
@@ -309,8 +375,8 @@ Zero downtime means working with unstable and experimental parts of Node!
 
 * https://github.com/mathrawka/express-graceful-exit
 * http://strongloop.com/strongblog/whats-new-in-node-js-v0-12-cluster-round-robin-load-balancing/?utm_source=javascriptweekly&utm_medium=email
-
-
+* [Domains don't incur performance hits compared to try catch](http://www.lighthouselogic.com/use-domain-dispose/#/using-a-new-domain-for-each-async-function-in-node/)
+* [Rejected PR to add domains to Mongoose, with discussion](https://github.com/LearnBoost/mongoose/pull/1337)
 
 Want to get even closer to 100% uptime?
 
