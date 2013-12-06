@@ -1,7 +1,7 @@
 {
   "name": "muchtolearn",
   "version": "0.0.1",
-  "main": "index",
+  "main": "index.js",
   "engines": {
     "node": "=0.10.20"
   },
@@ -10,7 +10,6 @@
     "url": "https://github.com/sandinmyjoints/muchtolearn.git"
   },
   "description": "Example code for Much to Learn: Towards Zero-downtime with Node.js.",
-  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -18,7 +17,8 @@
   "license": "MIT",
   "dependencies": {
     "recluster": "=0.3.4",
-    "express": "=3.4.0",
-    "glob": "~3.2.6"
+    "express": "~3.4.0",
+    "glob": "~3.2.6",
+    "mongoose": "~3.8.1"
   }
 }
