@@ -27,7 +27,9 @@ page web app with AJAX calls to a REST API.
 
 TODO Why zero-downtime?
 
-   - screenshot of nginx 503 or 502 gateway unreachable
+![no response](img/no-response.png)
+
+   - screenshot of nginx 503 or 502 gateway unreachable / upstream timed out
    - screenshot of Chrome (pending) request
 
 Note:
@@ -39,14 +41,33 @@ Note:
 
 
 
-Need a more concrete reason?
-## Pop quiz
-### What happens when a client makes a request and the underlying tcp connection is closed without a response?
+# Lots of things want to cause downtime
+
+- Database
+- Network
+- Engineer mistakes
+
+
+
+# It's us vs real world
+
+
+
+# Real world example
+
+
+- Bursts of errors in application log
+- What is happening?
+
+
+### What happens when
+### a client makes a request
+### and the underlying tcp connection
+### is closed without a response?
 
 Note:
 - If errors aren't handled correctly, user agents may resend bad requests
   and cause even more trouble.
-
 
 
 The client will open a new connection and retry.
@@ -81,11 +102,30 @@ No response is a big problem for clients, and for us
 
 
 
-# Sensible error handling
-## is key to 100% uptime
+If I had known the 4 keys to uptime
+
+# Keys to 100% uptime
 
 
-### Things that throw errors:
+## 1. Sensibly handle unknown errors
+### (i.e., uncaught exceptions)
+
+
+## 2. Use domains to handle known errors
+
+
+## 3. Gracefully terminate connections
+#### when needed
+
+
+## 4. Manage processes with cluster
+#### with a little help from friends
+
+
+# 1. Sensibly handle uncaught exceptions
+
+
+### uncaught exceptions happen when:
 - an error event that is emitted when no one is listening for it
 - async io
 
@@ -106,66 +146,75 @@ EventEmitter.prototype.emit = function(type) {
 ```
 
 
-
-## Always return a response, even on error
-
-Don't keep clients hanging. They can come back to bite you.
+# an uncaught exception crashes the process
 
 
+# We will work through what to do to recover from that
 
-# Handling exceptions
+# By the end, we will have a solution to handle that as well as possible
 
 
+# It starts with...
 
-# Handling async errors
-
-`try / catch` won't help you now!
-
-async can be trouble: no response whenever it was async. Express default error
-handling will not help you here, either.
 
 
 # Domains
 
-This is where domains come in. Wrap async operations in a domain, and the domain
-will handle whatever happens.
 
-* With domains, can we *always* return a response?
+# async is tricky
 
-* So, do I have to create a new domain everytime I do an async operation??
-  Everytime I handle a req/res?
 
-* That would work. Or you can create one and pass it around. In express, maybe
-  using res.locals.
+## `try / catch` won't help you now!
 
-* Use middleware.
+Note: async can be trouble: no response whenever it was async. Express default error
+handling will not help you here, either.
 
+
+# This is where domains come in.
+
+Wrap async operations in a domain, and the domain will handle whatever happens.
+
+
+# So, do I have to create a new domain everytime I do an async operation??
+Everytime I handle a req/res?
+
+
+# Yes. Sort of.
+
+That would work.
+
+Or you can create one and pass it around.
+
+In express, add it to res.locals using middleware.
+
+
+# Use middleware.
+
+* More convenient.
+
+```js
+var domainWrapper = function(req, res, next) {
+  var reqDomain = domain.create();
+  reqDomain.add(req);
+  reqDomain.add(res);
+  reqDomain.run(next);
+  reqDomain.once('error', function(err) {
+    next(err);
+  });
+};
+```
+
+<small>
+Based on
 * https://github.com/brianc/node-domain-middleware.
 * https://github.com/mathrawka/express-domain-errors
+</small>
 
-```coffee
-  domainWrapper: (before, after) ->
-    (req, res, next) ->
-      reqDomain           = domain.create()
-
-      res.locals._domain  = reqDomain
-
-      reqDomain.add req
-      reqDomain.add res
-
-      reqDomain.run next
-
-      reqDomain.once 'error', (err) ->
-        before err if before?
-        next err
-        after err if after?
-```
+Note: Triggers Express error handling. Your error handler can send a response.
 
 
 Of course, if the domain is disposed and an error occurs, then it will be
 uncaught. TODO confirm this -- see example-domain.js
-
-TODO Question: is it possible to wrap all of Express in a domain?
 
 
 ## domain methods
@@ -175,22 +224,233 @@ TODO Question: is it possible to wrap all of Express in a domain?
   - `intercept`
 
 
+## domain methods
+  - `enter`
+  - `bind`
+  - `run`
+  - `intercept`
+
+Slightly different semantics.
+
+`run` seems most generally useful.
+
+
 
 # domains
 ## are great
 ## until they're not
 
-* Still a lot of extra work to domain.bind or domain.intercept or domain.run
-  every async operations that might be unsafe. How to know?.
+unstable
 
-* Afaik, this is an unsolved problem and an area of research. Domains in v0.10
-  are 2 - Unstable.
+
+
+## node-mongodb-native (and thus Mongoose) does not respect `process.domain`
+
+```js
+app.use(function(req, res, next) {
+  console.log(process.domain); // a domain
+  UserModel.findOne({field: value}, function(err, doc) {
+    console.log(process.domain); // undefined
+    next();
+  });
+});
+```
+
+See https://github.com/LearnBoost/mongoose/pull/1337
+
+Going to open a Jira ticket
+
+How to know what other operations might be unsafe?
+
+Afaik, this is an unsolved problem and an area of research. Domains in v0.10 are
+2 - Unstable.
 
 * So that's how to handle the inner layers of the onion: the individual node
   http server, ie, your app.
 
-* Can you achieve zero-downtime with one instance of your app running? Use
-  domains, return a 500 on every exception?
+
+
+# Domains don't get us all the way there
+
+Can you achieve zero-downtime with one instance of your app running? Use
+domains, return a 500 on every exception?
+
+No.
+
+
+
+## 3. Manage processes with cluster
+#### with a little help from friends
+
+
+
+# cluster
+
+Node = one thread per process.
+
+Most machines have multiple CPUs.
+
+One process per CPU = cluster
+
+
+# master / workers
+
+* 1 master process forks n workers, binds a socket
+* Each new connection to socket is handed off to a worker
+* Master and workers communicate via IPC
+* No shared state, etc
+
+
+
+
+# What happens when a worker isn't working anymore?
+
+The node docs have nice examples but they are not robuset
+
+You have coordinate
+worker server closes
+worker disconnects from ipc channel
+
+Need to handle a worker disconnect
+
+Worker stays around to clean up gracefully
+
+Fork new worker
+
+
+
+# Zero downtime deployment
+
+master process never stops running
+forks new workers from new code
+
+
+
+# Process management choices
+
+
+## Forever
+   - Has been around...forever
+   - Lots of issues
+   - No cluster
+   - TODO Does it play well with upstart?
+   - TODO daemon?
+
+
+## Naught
+   - Newer
+   - Cluster
+   - Handles logging too (!)
+   - TODO Does it play well with upstart?
+   - runs its own daemon
+
+
+## Recluster
+   - Newer
+   - Cluster
+   - Simple
+   - Log agnostic
+   - Relatively easy to reason about
+
+
+## Went with recluster.
+### Happy so far.
+
+
+Some of it may be reinventing the wheel.
+
+Still learning all of what is going on in Node child_prcess and cluster modules.
+
+
+
+
+# Our ideal server
+
+TODO picture of unicorn or something
+
+
+## on exception caught by express, or process uncaught exception:
+   - Returns 500 if error was triggered by request
+   - Must *avoid not sending any response* because 1) user agent appears to hang
+     and 2) it will probably resend the bad request once the connection closes,
+     thus triggering another exception!
+   - stops accepting new TCP connections (either by disconnecting from
+     master/worker IPC channel, or calling server.close)
+   - worker enters graceful_shutdown state: closes existing keep-alive
+     long-running TCP connections (sets timeout to 1 whenever there is activity
+     on them so they close right away)
+   - worker process exits when all connections are closed (graceful), or after
+     a reasonable timeout period (hard exit)
+   - cluster master forks a replacement worker either once old worker dies
+     (easy) or once it stops accepting new TCP connections (how to know? either
+     disconnects, or maybe just server closes, in which case it needs to tell
+     cluster master). In that case, can have > n workers, where n is number of
+     CPUs -- not ideal, but probably not a problem unless a bad worker is
+     maxing out resources.
+
+
+## No downtime on deployment
+
+TODO how to introduce this
+
+
+# Deployment / upgrades
+
+Note: Robust error handling got us pretty far.
+
+
+
+## 4. Gracefully terminate connections
+#### when needed
+
+## Always return a response, even on error
+
+Don't keep clients hanging. They can come back to bite you.
+
+
+Revisit our middleware from earlier.
+
+Add before and after hooks for cleanup.
+
+
+```js
+var domainWrapper = function(before, after) {
+  return function(req, res, next) {
+    var reqDomain = domain.create();
+    res.locals._domain  = reqDomain;
+    reqDomain.add(req);
+    reqDomain.add(res);
+    reqDomain.run(next);
+    reqDomain.once('error', function(err) {
+      if(before) before(err);
+      next(err);
+      if(after) after(err);
+    });
+  };
+};
+```
+
+How to cleanup?
+
+* https://github.com/mathrawka/express-graceful-exit
+
+Set keepalive timeouts to zero TODO verify
+TODO figure out what else
+
+nginx: `proxy_next_upstream`
+http://wiki.nginx.org/HttpProxyModule#proxy_next_upstream
+ - if *any* data has been sent, you're stuck to the upstream
+ - if the request caused this error that crashed the upstream, then this will
+   crash your next upstream, too
+
+
+
+
+
+Back to 1
+
+## 1. Sensibly handle unknown errors
+### (i.e., uncaught exceptions)
 
 
 # uncaught exceptions
@@ -231,42 +491,6 @@ Note: This is really helpful for debugging and testing. Make sure to both a sync
 and an async version.
 
 
-
-# Our ideal server
-
-TODO picture of unicorn or something
-
-
-## on exception caught by express, or process uncaught exception:
-   - Returns 500 if error was triggered by request
-   - Must *avoid not sending any response* because 1) user agent appears to hang
-     and 2) it will probably resend the bad request once the connection closes,
-     thus triggering another exception!
-   - stops accepting new TCP connections (either by disconnecting from
-     master/worker IPC channel, or calling server.close)
-   - worker enters graceful_shutdown state: closes existing keep-alive
-     long-running TCP connections (sets timeout to 1 whenever there is activity
-     on them so they close right away)
-   - worker process exits when all connections are closed (graceful), or after
-     a reasonable timeout period (hard exit)
-   - cluster master forks a replacement worker either once old worker dies
-     (easy) or once it stops accepting new TCP connections (how to know? either
-     disconnects, or maybe just server closes, in which case it needs to tell
-     cluster master). In that case, can have > n workers, where n is number of
-     CPUs -- not ideal, but probably not a problem unless a bad worker is
-     maxing out resources.
-
-
-## No downtime on deployment
-
-TODO how to introduce this
-
-
-# Deployment / upgrades
-
-Note: Robust error handling got us pretty far.
-
-
 ## Our ideal server
 
 
@@ -299,35 +523,21 @@ Note: Robust error handling got us pretty far.
 
 
 
-# Process management choices
+# Revisit uncaught exceptions
 
+I've been dishonest
 
-## Forever
-   - Has been around...forever
-   - Lots of issues
-   - No cluster
-   - TODO Does it play well with upstart?
-   - TODO daemon?
+going on about always returning a response
 
+Still don't really know how to return a response for the req / res your uncaught exception
+handler is triggered on
 
-## Naught
-   - Newer
-   - Cluster
-   - Handles logging too (!)
-   - TODO Does it play well with upstart?
-   - runs its own daemon
+The other in-flight ones all get gracefully handled
 
+But what about this one?
 
-## Recluster
-   - Newer
-   - Cluster
-   - Simple
-   - Log agnostic
-   - Relatively easy to reason about
-
-
-## Went with recluster.
-### Happy so far.
+Fortunately, with all these steps, it shouldn't happen often, and when it does,
+it should be limited to one particular connection
 
 
 
