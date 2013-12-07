@@ -72,7 +72,7 @@ app.get("/domain/ex3", function(req, res) {
     checkDomain("inside async");
     throw new Error("ex");
   };
-  process.nextTick(f, 500);
+  process.nextTick(f);
 });
 
 app.get("/domain/ex4", function(req, res) {
@@ -83,7 +83,7 @@ app.get("/domain/ex4", function(req, res) {
     checkDomain("inside async");
     throw new Error("ex");
   };
-  process.nextTick(f, 500); // or setImmediate
+  process.nextTick(f); // or setImmediate
 });
 
 app.get("/domain/ex5", function(req, res) {
@@ -95,7 +95,7 @@ app.get("/domain/ex5", function(req, res) {
     checkDomain("inside async");
     throw new Error("ex");
   };
-  process.nextTick(f, 500); // or setImmediate
+  process.nextTick(f); // or setImmediate
 });
 
 

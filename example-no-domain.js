@@ -24,7 +24,7 @@ app.get("/no-domain/ex2", function(req, res) {
 app.get("/no-domain/ex3", function(req, res) {
   console.log("GET /no-domain/ex3: This will crash the server.");
   var f = function() { throw new Error("ex"); };
-  process.nextTick(f, 500);
+  process.nextTick(f);
 });
 
 app.get("/no-domain/ex4", function(req, res) {
@@ -33,7 +33,7 @@ app.get("/no-domain/ex4", function(req, res) {
   var f = function() {
     throw new Error("ex");
   };
-  process.nextTick(f, 500); // or setImmediate
+  process.nextTick(f); // or setImmediate
 });
 
 app.listen(PORT);
