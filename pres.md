@@ -2,25 +2,23 @@
 
 # 100% Uptime
 
-## with node.js ##
+## with Node ##
 
 
 
-# SpanishDict
 ![SpanishDict](img/sd-logo.png)
 
-9M uniques / month
+9M uniques / month.
 <br>
 <br>
-# Fluencia
 ![Fluencia](img/fluencia-logo.jpg)
 
-60K+ users, some are paid subscribers
+60K+ users, some are paid subscribers.
 
-Note: I'm a Software Engineer, one of three, at Curiosity Media. We have two
-main properties: SpanishDict and Fluencia. Both run Node.js on the backend.
-SpanishDict is a traditional web site, with page reloads. Fluencia is a single
-page web app with AJAX calls to a REST API.
+Note: I'm a Software Engineer, one of three, at Curiosity Media. We have two main properties:
+SpanishDict and Fluencia. Both run Node.js on the backend. SpanishDict is a traditional web site,
+with page reloads. Fluencia is a single page web app with AJAX calls to a REST API. We want both to
+run all the time, every day.
 
 
 
@@ -30,42 +28,45 @@ page web app with AJAX calls to a REST API.
 ![Downtime](/img/platform-downtime.png)
 
 Note:
-- If nginx can't talk to the app, can return 503, users might see it, or
-  their browser might hang.
-- If you know that deploying code can cause a bad experience for users who
-  are online, or cause system errors or corrupted data, you won't deploy as
-  much.
+Downtime is bad for all sorts of reasons.
+Users go away.
+If you know that deploying code can cause a bad experience for users who
+are online, or cause system errors or corrupted data, you won't deploy as
+much.
 
 
 
-### Lots of things can cause downtime
+### Lots of things can cause downtime.
 
-- database
-- network
-- imperfect engineers (e.g., me)
+- Database.
+- Network.
+- Imperfect engineers (e.g., me).
 
 
 
-## It's us vs real world (and ourselves!)
+### Preventing downtime takes
+### planning and work.
 
 
 
 ### Important, but
 ## out of scope
-### for this talk.
+### for this talk:
 
-* Redundant infrastructure
-* Backups
-* Disaster recovery
+* Redundant infrastructure.
+* Backups.
+* Disaster recovery.
 
 
 
 ## In scope:
 
 ## Node
-  * domains
-  * cluster module
-  * Express
+  * Domains.
+  * Cluster module.
+  * Express.
+
+Note: Without further ado, here are the...
 
 
 
@@ -73,17 +74,19 @@ Note:
 
 
 ## 1. Sensibly handle unknown errors
-### (i.e., uncaught exceptions)
+### (i.e., uncaught exceptions).
 
 
-## 2. Use domains to handle known errors
+## 2. Use domains to
+## handle known errors.
 
 
-## 3. Manage processes with cluster
+## 3. Manage processes
+## with cluster.
 
 
 ## 4. Gracefully terminate connections
-#### (when needed)
+#### (when needed).
 
 
 
@@ -111,42 +114,35 @@ EventEmitter.prototype.emit = function(type) {
 ```
 
 
-## an uncaught exception
-## crashes the process
-
-
-
-## an uncaught exception
-## crashes the process
+## An uncaught exception
+## crashes the process.
 
 This process might be a server.
 
-It might be handling a bunch of requests from different clients at this moment.
+It might be handling a bunch of requests
+<br>
+from different clients at any moment.
 
-It might have a bunch more clients keeping TCP connections open ready to send
-their next request.
+Crashing is bad.
 
 
 ## How can we recover from that?
 
 
-## By the end, we will have a solution
-## to handle this as well as possible
+### By the end, we will have a solution
+### to handle this as well as possible.
 
 
 ## It starts with...
 
 
 
-## Domains
-#### Use domains to handle known errors
+## Domains.
+#### Use domains to handle known errors.
 
 
-## domains are a bit like
-## `try / catch` for async
-
-Note: async can be trouble: no response whenever it was async. Express default error
-handling will not help you here, either.
+## Domains are a bit like
+## `try/catch` for async.
 
 
 
@@ -167,30 +163,31 @@ EventEmitter.prototype.emit = function(type) {
 
 
 
-## Wrap async operations
-## in a domain,
-## and the domain will catch
-## thrown exceptions
-## and emitted error events.
+### Wrap async operations in a domain,
+### and the domain will catch
+### thrown exceptions and error events.
 
 
 
-## Then it's up to you what to do with the error.
+### Then what to do with the error
+### is up to you.
 
-* ignore
-* retry
-* abort
-* throw (becomes like an unknown error)
+* Ignore.
+* Retry.
+* Abort (e.g., return 500).
+* Throw (becomes an unknown error).
 
 
 
 ### An error caught by a domain
-### has a few extra fields :
+### has a few extra fields:
 
 * `error.domain`
 * `error.domainEmitter`
 * `error.domainBound`
 * `error.domainThrown`
+
+Note: Maybe useful for tracing errors and debugging.
 
 
 
@@ -211,7 +208,7 @@ That would work.
 More convenient.
 
 
-## In Express, this might look like:
+### In Express, this might look like:
 
 ```js
 var domainWrapper = function(req, res, next) {
@@ -235,6 +232,7 @@ https://github.com/mathrawka/express-domain-errors
 </small>
 
 Note:
+Let's step through this.
 req and res are event emitters.
 EEs can be explicitly added to a domain.
 And when new EEs are created, they add themselves to the active domain.
@@ -252,27 +250,25 @@ In general, be able to talk about dispose.
 
 
 
-## domain methods
-- `enter`
-- `bind`
-- `run`
-- `intercept`
+## Domain methods.
+- `run`: run a function in context of domain.
+- `bind`: bind one function.
+- `intercept`: like bind but handles 1st arg `err`.
+- `enter`/`exit`: internal plumbing &mdash; don't use!
 
 <br />
-Slightly different semantics.
-
 `run` seems most generally useful.
 
 
 
-# domains
+# Domains
 ## are great
-## until they're not
+## until they're not.
 
 
 
 ### node-mongodb-native does not play well
-### with `process.domain`
+### with `process.domain`.
 
 ```js
 app.use(function(req, res, next) {
@@ -305,26 +301,23 @@ Domains in v0.10 are "unstable".
 
 
 
-## Is 100% uptime possible
-## with one instance of your app running?
+### Can 100% uptime be achieved
+### just using domains?
 
-<br />
 ## No.
 
-
-
-## Domains don't get us all the way there.
-
+### Not if only one instance of your app is running.
 
 Note: Which brings us to #3...
 
 
 
-## 3. Manage processes with cluster
+## 3. Manage processes
+## with cluster.
 
 
 
-# cluster module
+## Cluster module.
 
 Node = one thread per process.
 
@@ -352,20 +345,20 @@ Some coordination is needed.
 
 2. The master needs to know what to do: fork a replacement.
 
-3. Master cannot wait for worker to die before forking a replacement
+3. Master cannot wait for worker to die before forking a replacement.
 
 
 ### When a worker server can't accept new connections:
 
 1. Worker tells cluster master it is disconnecting.
-2. Worker disconnects from ipc channel.
+2. Worker disconnects from IPC channel.
 3. Cluster master needs to fork new worker as soon as dying worker stops listening or disconnects from IPC
 channel.
 3. Worker needs to stay around to clean up in-flight requests gracefully.
 
 
 
-## Deployment
+## Deployment.
 
 Another use case for cluster.
 
@@ -374,7 +367,7 @@ We want to replace all existing servers.
 Something must manage that = cluster master process.
 
 
-## Zero downtime deployment
+## Zero downtime deployment.
 
 * Master process never stops running.
 
@@ -385,49 +378,50 @@ Something must manage that = cluster master process.
 * Master tells old workers to shut down gracefully, forks new workers from new code.
 
 
-## Signals
-Signals are the UNIX way
+## Signals.
+Signals are a UNIXy way
 <br>
 to communicate with running processes.
 <br />
 For example:
 
-- `SIGHUP`: cycle workers (or `SIGUSR2`)
-- `SIGINT`, `SIGQUIT`, `SIGTERM`: shut down gracefully
-- `SIGKILL`: shut down **now**
+- `SIGHUP`: cycle workers (or `SIGUSR2`).
+- `SIGINT`, `SIGQUIT`, `SIGTERM`: shut down gracefully.
+- `SIGKILL`: shut down **now**.
 
 
 
-## Process management options
+## Process management options.
 
 
 ## Forever
 https://github.com/nodejitsu/forever
 
-- Has been around...forever
-- Runs as daemon, and runs your script as a daemon
-- No cluster awareness -- use it on the master process
-- More comparable to Upstart or Monit
-- Lots of GH issues
+- Has been around...forever.
+- Runs as daemon, and runs your script as a daemon.
+- No cluster awareness &mdash; used on master process.
+- More comparable to Upstart or Monit.
+- Lots of GH issues.
 
 
 ## Naught
 https://github.com/superjoe30/naught
 
-- Newer
-- Runs as daemon
-- Cluster aware
-- Handles log compression, rotation
+- Newer.
+- Runs as daemon.
+- Cluster aware.
+- Can backoff respawns.
+- Handles log compression, rotation.
 
 
 ## Recluster
 https://github.com/doxout/recluster
 
-- Newer
-- Cluster aware
-- Log agnostic
-- Simple
-- Relatively easy to reason about
+- Newer.
+- Cluster aware.
+- Can backoff respawns.
+- Simple, relatively easy to reason about.
+- Log agnostic.
 
 
 ## We went with recluster.
@@ -440,31 +434,37 @@ I'm still learning the extent of what is going on in Node `child_process` and `c
 
 
 
-## In-flight
+#### We have been talking about
+#### connecting / disconnecting
+#### as if they are atomic.
 
-We have been talking about
-<br>
-connecting / disconnecting
-<br>like they are atomic.
-
-They're not.
-
-* In-flight requests
-* HTTP keep-alive TCP connections
+### They're not.
 
 
 
 ## 4. Gracefully terminate connections
-#### when needed
+#### when needed.
 
 
-## Don't kill a worker instantly
+
+## Don't kill a worker instantly.
 
 Give it a grace period to shut down cleanly.
 
-Controversial: if it is in such a bad state (e.g., db disconnected), bad things
-might happen to in-flight requests, too. I don't know of any way to recover from
-that. Interested in ideas.
+
+### When a server closes,
+### need to clean up:
+* In-flight requests.
+* HTTP keep-alive TCP connections.
+
+
+
+### Slightly Controversial?
+
+If it is in such a bad state (e.g., db disconnected), bad things might happen to in-flight requests,
+too.
+
+I don't know of any way to recover from that. Interested in ideas.
 
 
 More likely, if it's an application error, the other requests will be fine.
@@ -512,100 +512,21 @@ https://github.com/mathrawka/express-graceful-exit
 
 
 
-Back to where we started:
-## 1. Sensibly handle unknown errors
-### (i.e., uncaught exceptions)
-
-
-## uncaught exceptions
-
-We have minimized these by using domains.
-
-But they can still happen.
+### Node will close server once server.close calls back
+Then call `process.exit`.
 
 
 
-By definition, you don't know what happened.
-
-> An unhandled exception means your application - and by extension node.js
-> itself - is in an undefined state. Blindly resuming means anything could
-> happen.
->
-> You have been warned.
-
-<small>
-http://nodejs.org/api/process.html#process_event_uncaughtexception:
-</small>
-
-
-Izaacs recently wrote a post standing by this:
-http://blog.izs.me/post/65712662830/restart-node-js-servers-on-domain-errors-sensible-fud
+### Set a timer.
+If timeout period expires and server is still around, call `process.exit`.
 
 
 
-Node docs say not to keep running on uncaught exceptions:
-
-## Do you feel lucky?
-
-These are not errors that you have anticipated, so you don't have a
-response to them. If you keep going, maybe things will be fine, maybe not
-impossible to predict.
-
-
-
-### What to do?
-### You're supposed to
-### kill the instance!
-
-
-But now, we can do that with a minimum of trouble:
-
-* Individual worker errors out.
-* It stops accepting new connections.
-* Cluster master spins up a new worker to replace it.
-* Dying worker gracefully closes existing connections, then dies.
-
-
-## But how about the response that killed the worker?
-
-## How does the dying worker respond to it?
-
-Good question!
-
-
-I've been going on about always returning a response.
-
-Still don't really know how to return a response for the req / res your uncaught exception
-handler is triggered on
-
-The other in-flight ones all get gracefully handled
-
-But what about this one?
-
-Fortunately, with all these steps, it shouldn't happen often, and when it does,
-it should be limited to one particular connection
-
-- Must *avoid not sending any response* because 1) user agent appears to hang
-and 2) it might resend the bad request once the connection closes
-and trigger another exception!
-
-
-## Always return a response, even on error
-
-Don't keep clients hanging. They can come back to bite you.
-
-
-nginx: `proxy_next_upstream`
-http://wiki.nginx.org/HttpProxyModule#proxy_next_upstream
-- if *any* data has been sent, you're stuck to the upstream
-- if the request caused this error that crashed the upstream, then this will
-crash your next upstream, too
-
-
-
+### Let's review
 # Ideal server
 
-TODO picture of unicorn or something
+![unicorn](/img/rainbow_unicorn.gif)
+
 
 
 ## On provision / boot
@@ -635,16 +556,114 @@ timeout.
 - node-app server returns 500 if error was triggered by request
 
 
+
+## On unknown error
+### (uncaught exception)
+
+- ??
+
+
+
+Back to where we started:
+## 1. Sensibly handle unknown errors
+### (i.e., uncaught exceptions)
+
+
+## uncaught exceptions
+
+We have minimized these by using domains.
+
+But they can still happen.
+
+
+
+Node docs say not to keep running on uncaught exceptions.
+
+> An unhandled exception means your application &mdash; and by extension node.js
+> itself &mdash; is in an undefined state. Blindly resuming means anything could
+> happen.
+>
+> You have been warned.
+
+<small>
+http://nodejs.org/api/process.html#process_event_uncaughtexception
+</small>
+
+
+
+These are not errors that you have anticipated, so you don't have a response to them. If you keep
+going, maybe things will be fine, maybe not impossible to predict.
+
+This is a controversial topic. You can find lots of debate on Github and Stackoverflow about whether
+it is possible to recover from an uncaught exception.
+
+TODO links
+
+
+
+### What to do?
+### You're supposed to
+### kill the instance!
+
+
+First, log the error so you know what happened.
+
+
+It's not so bad. We can do now it
+with a minimum of trouble:
+
+
 ## On unknown error
 ## (uncaught exception)
 
+- app logs the error.
 - node-app server stops accepting new TCP connections (either by disconnecting from
-master/worker IPC channel, or calling server.close)
-- worker tells cluster master it is disconnecting, then disconnects
+master/worker IPC channel, or calling server.close).
+- worker tells cluster master it is disconnecting, then disconnects.
 - cluster master forks a replacement worker.
-- server enters graceful shutdown state
+- server enters graceful shutdown state.
 - worker process exits when all connections are closed (graceful), or after
-a reasonable timeout period (hard exit)
+a reasonable timeout period (hard exit).
+
+
+
+### What about the response that killed the worker?
+
+### How does the dying worker respond to it?
+
+### Good question!
+
+
+
+> People are also under the illusion that it is possible to trace back [an uncaught] exception to
+> the http request that caused it...
+
+<small>-felixge, https://github.com/joyent/node/issues/2582</small>
+
+I've been going on about always returning a response.
+
+You can't always do it. Yet.
+
+Fortunately, with all these steps, it shouldn't happen often, and when it does,
+it should be limited to one particular connection.
+
+
+
+## Always return a response, even on error
+
+Don't keep clients hanging. They can come back to bite you.
+
+- Must *avoid not sending any response* because 1) user agent appears to hang
+and 2) it might resend the bad request once the connection closes
+and trigger another exception!
+
+
+
+nginx: `proxy_next_upstream`
+http://wiki.nginx.org/HttpProxyModule#proxy_next_upstream
+- if *any* data has been sent, you're stuck to the upstream
+- if the request caused this error that crashed the upstream, then this will
+crash your next upstream, too
 
 
 
@@ -656,7 +675,6 @@ Must bump cluster master when:
 * Cluster master code changes
 * Upstart script changes
 
-TODO: Do other solutions handle these cases? What would it take to fix this?
 
 
 ### During timeout periods, might have:
@@ -673,20 +691,20 @@ Should be brief. Probably preferable to downtime.
 ## A few tips
 
 
-### Be able to produce an error on demand on your dev and staging servers.
+### Be able to produce errors on demand on your dev and staging servers.
 (Disable this in production.)
 
 Note: This is really helpful for debugging and testing. Make sure to both a sync
 and an async version.
 
 
-## Keep master simple
+## Keep master simple.
 
 It needs to run for a long time without being updated.
 
 
 
-## Future
+## The future.
 
 I've been talking about:
 
@@ -701,31 +719,32 @@ I've been talking about:
 ```
 
 
-## Things change
+## Things change.
 
 
 ## Node 0.11 / 0.12
-For example, Node 0.11 cluster module has some changes.
+For example, cluster module has some changes.
 
 
 
 ## cluster is 'experimental'
-Zero downtime means working with unstable and experimental parts of Node!
+Zero downtime means working with unstable or experimental parts of Node!
 
 
 
-# Good reading
+## Good reading
 
-* https://github.com/mathrawka/express-graceful-exit
-* http://strongloop.com/strongblog/whats-new-in-node-js-v0-12-cluster-round-robin-load-balancing/?utm_source=javascriptweekly&utm_medium=email
+* [Remove uncaught exception handler?](https://github.com/joyent/node/issues/2582)
+* [Isaacs stands by killing on uncaught](http://blog.izs.me/post/65712662830/restart-node-js-servers-on-domain-errors-sensible-fud)
 * [Domains don't incur performance hits compared to try catch](http://www.lighthouselogic.com/use-domain-dispose/#/using-a-new-domain-for-each-async-function-in-node/)
 * [Rejected PR to add domains to Mongoose, with discussion](https://github.com/LearnBoost/mongoose/pull/1337)
 * [Don't call enter / exit across async](http://stackoverflow.com/a/15244463/599258)
 * [Comparison of naught and forever](https://s3.amazonaws.com/superjoe/temp/naught.html)
+* [What's changing in cluster](http://strongloop.com/strongblog/whats-new-in-node-js-v0-12-cluster-round-robin-load-balancing/?utm_source=javascriptweekly&utm_medium=email)
 
 
 
-If you thought this was interesting
+If you thought this was interesting,
 
 ## We're hiring.
 
@@ -733,7 +752,10 @@ If you thought this was interesting
 
 ![SpanishDict](img/sd-logo.png)
 
-Come talk to me.
+[curiositymedia.theresumator.com](http://curiositymedia.theresumator.com/)
+
+
+## Thanks!
 
 * @williamjohnbert
-* github.com/sandinmyjoints
+* github.com/sandinmyjoints/muchtolearn
