@@ -13,7 +13,7 @@
 <br>
 ![Fluencia](img/fluencia-logo.jpg)
 
-60K+ users, some are paid subscribers.
+75K+ users, some are paid subscribers.
 
 Note: I'm a Software Engineer, one of three, at Curiosity Media. We have two main properties:
 SpanishDict and Fluencia. Both run Node.js on the backend. SpanishDict is a traditional web site,
@@ -529,7 +529,7 @@ If timeout period expires and server is still around, call `process.exit`.
 
 
 
-## On provision / boot
+## On boot:
 
 - OS process manager (e.g., Upstart) starts node-app service.
 - node-app service brings up cluster master.
@@ -538,7 +538,7 @@ If timeout period expires and server is still around, call `process.exit`.
 - Each instance accepts connections.
 
 
-## On deploy
+## On deploy:
 
 - Point symlink to new version.
 - Upstart `reload` command sends `SIGHUP` to cluster master.
@@ -550,17 +550,23 @@ If timeout period expires and server is still around, call `process.exit`.
 timeout.
 
 
-## On known error
+## On known error:
 
 - node-app server catches it (error handler, or domain)
 - node-app server returns 500 if error was triggered by request
 
 
 
-## On unknown error
+## On unknown error:
 ### (uncaught exception)
 
 - ??
+
+```js
+process.on('uncaughtException', function(err) {
+  // ??
+})
+```
 
 
 
@@ -569,7 +575,7 @@ Back to where we started:
 ### (i.e., uncaught exceptions)
 
 
-## uncaught exceptions
+## Uncaught exceptions happen.
 
 We have minimized these by using domains.
 
@@ -602,11 +608,14 @@ TODO links
 
 
 ### What to do?
-### You're supposed to
+First, log the error so you know what happened.
+
+
+#### Then,
+### you're supposed to
 ### kill the instance!
 
 
-First, log the error so you know what happened.
 
 
 It's not so bad. We can do now it
@@ -642,20 +651,26 @@ a reasonable timeout period (hard exit).
 
 I've been going on about always returning a response.
 
-You can't always do it. Yet.
+You can't always do it.
 
 Fortunately, with all these steps, it shouldn't happen often, and when it does,
 it should be limited to one particular connection.
 
 
 
-## Always return a response, even on error
+This is too bad, because you really want to
+
+## always return a response, even on error.
 
 Don't keep clients hanging. They can come back to bite you.
 
-- Must *avoid not sending any response* because 1) user agent appears to hang
+Must *avoid not sending any response* because 1) user agent appears to hang
 and 2) it might resend the bad request once the connection closes
 and trigger another exception!
+
+
+
+It's in the HTTP spec
 
 
 
@@ -667,20 +682,20 @@ crash your next upstream, too
 
 
 
-## Limitations
+## Limitations.
 
 Must bump cluster master when:
 
-* Upgrade Node
-* Cluster master code changes
-* Upstart script changes
+* Upgrade Node.
+* Cluster master code changes.
+* Upstart script changes.
 
 
 
 ### During timeout periods, might have:
 
-* More than workers than CPUs
-* Workers running different versions (old/new)
+* More than workers than CPUs.
+* Workers running different versions (old/new).
 
 <br>
 <br>
@@ -688,7 +703,7 @@ Should be brief. Probably preferable to downtime.
 
 
 
-## A few tips
+## A few tips.
 
 
 ### Be able to produce errors on demand on your dev and staging servers.
@@ -727,13 +742,16 @@ For example, cluster module has some changes.
 
 
 
-## cluster is 'experimental'
+## cluster is 'experimental'.
 Zero downtime means working with unstable or experimental parts of Node!
 
 
 
-## Good reading
+## Good reading:
 
+*
+  [Node.js Best Practice Exception Handling](http://stackoverflow.com/questions/7310521/node-js-best-practice-exception-handling)
+  (some answers more helpful than others)
 * [Remove uncaught exception handler?](https://github.com/joyent/node/issues/2582)
 * [Isaacs stands by killing on uncaught](http://blog.izs.me/post/65712662830/restart-node-js-servers-on-domain-errors-sensible-fud)
 * [Domains don't incur performance hits compared to try catch](http://www.lighthouselogic.com/use-domain-dispose/#/using-a-new-domain-for-each-async-function-in-node/)
