@@ -6,7 +6,7 @@
 
 
 
-![SpanishDict](img/sd-logo.png)
+<img src='img/sd-logo.png' alt="SpanishDict" style="width: 500px; height: 85px">
 
 9M uniques / month.
 <br>
