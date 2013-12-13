@@ -397,23 +397,22 @@ One process per CPU = cluster.
 ### Some coordination is needed.
 
 
-* Worker needs to tell cluster master it's done, and stop accepting new connections.
+* Worker tells cluster master it's done accepting new connections.
 
-* Cluster master needs to fork a replacement.
+* Cluster master forks replacement.
 
-* Worker needs to stay around to clean up in-flight requests gracefully.
+* Worker stays around to clean up.
 
-* So, master cannot wait for worker to die before forking a replacement.
+* Master cannot wait for worker to die before replacing!
 
 
 
+Another use case for cluster:
 ## Deployment.
 
-Another use case for cluster.
+* Want replace all existing servers.
 
-We want to replace all existing servers.
-
-Something must manage that = cluster master process.
+* Something must manage that = cluster master process.
 
 Note: a bit like a deliberately induced error across all your workers.
 
@@ -421,21 +420,25 @@ Note: a bit like a deliberately induced error across all your workers.
 
 ## Zero downtime deployment.
 
-* Master process never stops running.
+* When master starts, point a symlink to worker code.
 
-* Tell master location of new code: use a symlink, update symlink when deploy new code.
+* On deploy new code, update symlink.
 
-* Tell master when to reload workers by sending a signal.
+* Send signal to master: fork new workers!
 
-* Master tells old workers to shut down gracefully, forks new workers from new code.
+* Master tells old workers to shut down, forks new workers from new code.
+
+* Master process never stops running!
 
 
 ## Signals.
 A way to communicate with running processes.
 
-- `SIGHUP`: cycle workers (or `SIGUSR2`).
-- `SIGINT`, `SIGQUIT`, `SIGTERM`: shut down gracefully.
-- `SIGKILL`: shut down **now**.
+- `SIGHUP`: cycle workers (some like `SIGUSR2`).
+
+- `$ kill -s HUP`
+
+- `$ service node-app reload`
 
 
 
@@ -457,8 +460,8 @@ https://github.com/superjoe30/naught
 
 - Newer.
 - Cluster aware.
-- Can backoff respawns.
-- Clean deploys.
+- Zero downtime errors and deploys.
+- Runs as daemon.
 - Handles log compression, rotation.
 
 
@@ -467,10 +470,10 @@ https://github.com/doxout/recluster
 
 - Newer.
 - Cluster aware.
-- Can backoff respawns.
-- Simple, relatively easy to reason about.
-- Will cleanly cycle your worker process
+- Zero downtime errors and deploys.
+- Does not run as daemon.
 - Log agnostic.
+- Simple, relatively easy to reason about.
 
 
 ## We went with recluster.
@@ -484,10 +487,10 @@ I'm still learning the extent of what is going on in Node's `child_process` and 
 
 
 #### We have been talking about
-#### connecting / disconnecting
-#### as if they are atomic.
+#### starting / stopping workers
+#### as if it's atomic.
 
-### They're not.
+### It's not.
 
 
 
@@ -496,11 +499,9 @@ I'm still learning the extent of what is going on in Node's `child_process` and 
 
 
 
-## Don't kill a worker instantly.
+### Don't call `process.exit` right away!
 
-Don't call `process.exit` right away!
-
-Give it a grace period to do clean up.
+### Give it a grace period to do clean up.
 
 Note: Don't call `process.exit` right away! Slightly controversial? If it is in
 such a bad state (e.g., db disconnected), bad things might happen to in-flight
@@ -519,8 +520,6 @@ the other requests will be fine.
 ### How to clean up
 Revisiting our middleware from earlier:
 
-Add before and after hooks for cleanup.
-
 ```js
 var domainWrapper = function(before, after) {
   return function(req, res, next) {
@@ -537,6 +536,20 @@ var domainWrapper = function(before, after) {
 };
 ```
 
+Note: Add before and after hooks for cleanup.
+
+
+
+## Call `server.close`.
+Graceful by default: calls back once server has closed all existing connections.
+
+```js
+var afterHook = function(req, res, next) {
+  server.close(); // <-- close server
+  next();
+}
+```
+
 
 ## Shut down keep-alive connections.
 
@@ -550,6 +563,8 @@ var shutdownMiddle = function(req, res, next) {
 
 var afterHook = function(req, res, next) {
   app.set("isShuttingDown", true); // <-- set state
+  server.close();
+  next()
 }
 ```
 
@@ -562,17 +577,6 @@ open. We want to close those TCP connections for our dying worker. Set keepalive
 timeouts to 1 so as soon there is activity, they close right away. TODO Learn
 more about this.
 
-
-
-## Call `server.close`.
-Will call back once server has closed all existing connections.
-
-```js
-var afterHook = function(req, res, next) {
-  app.set("isShuttingDown", true);
-  server.close(); // <-- close server
-}
-```
 
 
 ### Then you can call `process.exit`.
@@ -604,35 +608,36 @@ time is up and the worker just has to go.
 
 ## On boot:
 
-- OS process manager (e.g., Upstart) starts node-app service.
-- node-app service brings up cluster master.
-- Cluster master forks new workers from symlink.
-- Each worker creates an instance of node-app server.
-- Each instance accepts connections.
+- OS process manager (e.g., Upstart) starts service.
+- Service brings up cluster master.
+- Cluster master forks workers from symlink.
+- Each worker's server starts accepting connections.
 
 
 ## On deploy:
 
 - Point symlink to new version.
-- Upstart `reload` command sends `SIGHUP` to cluster master.
-- Cluster master tells workers to disconnect from IPC channel.
+- Send signal to cluster master.
+- Cluster master tells workers to stop accepting new connections.
 - Cluster master forks new workers from new version of code.
-- Workers disconnect from IPC channel.
-- Workers enter graceful shutdown state: close out TCP connections.
-- Existing workers exit when all connections are closed, or after a
-timeout.
+- Workers shutdown gracefully.
+
+Note: master never stops. There are always workers accepting new connections.
+Workers close out existing connections before dying.
 
 
 ## On known error:
 
-- node-app server catches it (via error handler or domain).
-- node-app server returns 500 if error was triggered by request.
-- next action depends on context: retry? abort? etc.
+- Server catches it via domain.
+- Next action depends on you: retry? abort? etc.
+
+Note: There is no catch-all action here: it really depends on your app and on
+what error you've got. Also, you can use contextual domains that catch errors
+from specific operations so you have a better sense of what kinds of errors will
+be caught.
 
 
-
-## On unknown error:
-### (uncaught exception)
+## On caught exception:
 
 - ??
 
@@ -645,11 +650,7 @@ process.on('uncaughtException', function(err) {
 
 
 Back to where we started:
-## 1. Sensibly handle unknown errors
-### (i.e., uncaught exceptions)
-
-
-## Uncaught exceptions happen.
+## 1. Sensibly handle uncaught exceptions
 
 We have minimized these by using domains.
 
@@ -657,7 +658,7 @@ But they can still happen.
 
 
 
-Node docs say not to keep running on uncaught exceptions.
+Node docs say not to keep running.
 
 > An unhandled exception means your application &mdash; and by extension node.js
 > itself &mdash; is in an undefined state. Blindly resuming means anything could
@@ -672,8 +673,8 @@ Node docs say not to keep running on uncaught exceptions.
 > </footer>
 
 Note: By definition, you don't know what's going on, so there's no sure way to
-recover. This is the tought part of Node not separating your application from
-the server. With power comes responsibility.
+recover. This comes from Node not separating your application from the server.
+With power comes responsibility.
 
 
 ### What to do?
@@ -684,20 +685,19 @@ First, log the error so you know what happened.
 ### kill the process.
 
 
-It's not so bad. We can do now it
-with a minimum of trouble:
+### It's not so bad. We can now do so
+### with minimal trouble.
 
 
 ## On unknown error
 ## (uncaught exception)
 
-- app logs the error.
-- server stops accepting new connections (either by disconnecting from
-master/worker IPC channel, or calling `server.close`).
-- worker tells cluster master it is disconnecting, then disconnects.
-- cluster master forks a replacement worker.
-- server enters shutdown state.
-- worker process exits when all connections are closed, or after
+Graceful shutdown.
+- Log the error.
+- Server stops accepting new connections.
+- Worker tells cluster master "no more new connections"
+- Cluster master forks a replacement worker.
+- Worker exits when all connections are closed, or after
 a reasonable timeout.
 
 
