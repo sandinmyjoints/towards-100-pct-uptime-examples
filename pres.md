@@ -2,15 +2,17 @@
 
 # 100% Uptime
 
-## with Node ##
+## with Node.js ##
 
 Note: A guy is standing on the corner of the street chain smoking cigarettes, one after another.
 A woman walking by notices him and says, "Hey, don't you know that those things can kill you? I mean,
-didn't you see the giant warning on the box?!"
+didn't you see the giant **warning** on the box?!"
 "That's OK," the guy says, while he puffs away. "I'm a computer programmer."
-"So? What's that got to do with anything?"
-"We don't care about warnings. We only care about errors."
+"So? What's **that** got to do with anything?"
+"We don't care about **warnings**. We only care about **errors**."
 From http://stackoverflow.com/a/235307/599258
+We indeed care greatly about errors. Though probably best not ignore warnings
+entirely. :)
 
 
 
@@ -23,8 +25,7 @@ From http://stackoverflow.com/a/235307/599258
 
 75K+ users, some are paid subscribers.
 
-Note:
-I'm a Software Engineer, one of three, at Curiosity Media.
+Note: About me: I'm a Software Engineer, one of three, at Curiosity Media.
 We have two main properties:
 SpanishDict and Fluencia.
 SpanishDict is a traditional web site, with page reloads.
@@ -39,8 +40,7 @@ Both run Node.js on the backend.
 
 ![Downtime](/img/platform-downtime.png)
 
-Note:
-Downtime is bad for all sorts of reasons.
+Note: Downtime is bad for all sorts of reasons.
 Users go away.
 If you know that deploying code can cause a bad experience for users who
 are online, or cause system errors or corrupted data, you won't deploy as
@@ -637,7 +637,7 @@ from specific operations so you have a better sense of what kinds of errors will
 be caught.
 
 
-## On caught exception:
+## On uncaught exception:
 
 - ??
 
@@ -717,7 +717,7 @@ a reasonable timeout.
 > <small>-felixge, https://github.com/joyent/node/issues/2582</small>
 > </cite></footer>
 
-Note: Felix Geisendorf, who originally added process.on uncaughtException, and
+Note: Felix Geisendorfer, who originally added process.on uncaughtException, and
 has also asked for it to be removed!
 
 
@@ -740,7 +740,7 @@ can't guarantee it. But then, who can?
 ### uncaughts shouldn't happen often.
 
 ### And when they do, only one
-### particular connection should be left hanging.
+### connection will be left hanging.
 
 
 
@@ -838,4 +838,4 @@ If you thought this was interesting,
 ## Thanks!
 
 * @williamjohnbert
-* github.com/sandinmyjoints/muchtolearn
+* github.com/sandinmyjoints/towards-100-pct-uptime
