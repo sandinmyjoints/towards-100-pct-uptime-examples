@@ -91,8 +91,8 @@ app.get("/domain/ex8", function(req, res) {
     checkDomain("inside findOne callback");
     throw new Error("mongoose error");
     AppModel.findOne(process.domain.bind(function(err, doc) {
-      if (err) console.log("second error");
-
+        if (err) console.log("second error");
+    }));
   }));
 });
 
